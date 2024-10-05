@@ -343,18 +343,18 @@ func format(u *url.URL, f string) []string {
 
 		// the path; e.g. /users
 		case 'p':
-			out.WriteString(u.EscapedPath())
+			out.WriteString(u.RawPath)
 
 		// the paths's file extension
 		case 'e':
-			paths := strings.Split(u.EscapedPath(), "/")
+			paths := strings.Split(u.RawPath, "/")
 			if len(paths) > 1 {
 				parts := strings.Split(paths[len(paths)-1], ".")
 				if len(parts) > 1 {
 					out.WriteString(parts[len(parts)-1])
 				}
 			} else {
-				parts := strings.Split(u.EscapedPath(), ".")
+				parts := strings.Split(u.RawPath, ".")
 				if len(parts) > 1 {
 					out.WriteString(parts[len(parts)-1])
 				}
