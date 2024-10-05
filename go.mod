@@ -1,4 +1,4 @@
-module github.com/tomnomnom/unfurl
+module github.com/riramar/unfurl
 
 go 1.18
 
