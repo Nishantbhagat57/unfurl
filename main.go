@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"regexp"
@@ -55,14 +56,20 @@ func main() {
 		return
 	}
 
-	sc := bufio.NewScanner(os.Stdin)
-	buf := make([]byte, 0, 64*1024)
-	sc.Buffer(buf, 1024*1024)
-
+	reader := bufio.NewReader(os.Stdin)
 	seen := make(map[string]bool)
 
-	for sc.Scan() {
-		u, err := parseURL(sc.Text())
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Fprintf(os.Stderr, "failed to read input: %s\n", err)
+			break
+		}
+
+		u, err := parseURL(strings.TrimSpace(line))
 		if err != nil {
 			if verbose {
 				fmt.Fprintf(os.Stderr, "parse failure: %s\n", err)
@@ -75,7 +82,6 @@ func main() {
 		// loop over it instead of having two kinds of
 		// urlProc functions.
 		for _, val := range procFn(u, fmtStr) {
-
 			// you do see empty values sometimes
 			if val == "" {
 				continue
@@ -92,10 +98,6 @@ func main() {
 				seen[val] = true
 			}
 		}
-	}
-
-	if err := sc.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read input: %s\n", err)
 	}
 }
 
