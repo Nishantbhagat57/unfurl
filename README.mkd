@@ -31,6 +31,11 @@ go install github.com/Nishantbhagat57/unfurl@latest
 cp $HOME/go/bin/unfurl /usr/local/bin/unfurl
 ```
 
+Remove and install in one line:
+```
+rm ~/go/bin/unfurl ; rm ~/.local/bin/unfurl ; sudo rm /usr/local/bin/unfurl ; go install github.com/Nishantbhagat57/unfurl@latest ; sudo cp $HOME/go/bin/unfurl /usr/local/bin/unfurl
+```
+
 ## Usage
 
 unfurl works with URLs provided on stdin; they might come from a file like this one:
