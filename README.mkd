@@ -4,13 +4,7 @@ Pull out bits of URLs provided on `stdin`
 
 ## Install
 
-If you have Go installed and configured:
-
-```
-▶ go install github.com/Nishantbhagat57/unfurl@latest
-```
-
-Removing old unfurl:
+First remove old unfurl:
 
 ```
 # Check if it's in your GOPATH/bin
@@ -28,6 +22,13 @@ ls -la /usr/local/bin/unfurl
 rm ~/go/bin/unfurl          # if found here
 rm ~/.local/bin/unfurl      # if found here
 sudo rm /usr/local/bin/unfurl  # if found here (needs sudo)
+```
+
+If you have Go installed and configured:
+
+```
+go install github.com/Nishantbhagat57/unfurl@latest
+cp $HOME/go/bin/unfurl /usr/local/bin/unfurl
 ```
 
 ## Usage
