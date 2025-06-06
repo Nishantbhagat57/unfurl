@@ -10,7 +10,8 @@ If you have Go installed and configured:
 ▶ go install github.com/Nishantbhagat57/unfurl@latest
 ```
 
-Removing old unfurl"
+Removing old unfurl:
+
 ```
 # Check if it's in your GOPATH/bin
 which unfurl
