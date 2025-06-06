@@ -1,10 +1,10 @@
 module github.com/Nishantbhagat57/unfurl
 
-go 1.18
+go 1.24.1
+
+require github.com/weppos/publicsuffix-go v0.40.2
 
 require (
-	github.com/Cgboal/DomainParser v0.0.0-20210827145802-99068439e39f
-	github.com/jakewarren/tldomains v0.0.0-20220401175117-e21ec594add9
+	golang.org/x/net v0.27.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 )
-
-require golang.org/x/net v0.0.0-20220401154927-543a649e0bdd // indirect
