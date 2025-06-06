@@ -9,18 +9,10 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 
-	parser "github.com/Cgboal/DomainParser"
+	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
-
-
-var extractor parser.Parser
-
-func init() {
-	extractor = parser.NewDomainParser()
-}
 
 func main() {
 
@@ -412,20 +404,31 @@ func format(u *url.URL, f string) []string {
 	return []string{out.String()}
 }
 
+// extractFromDomain extracts subdomain, root domain, or TLD from a URL's hostname
+// using the publicsuffix-go library which correctly handles multi-part TLDs
 func extractFromDomain(u *url.URL, selection string) string {
+	hostname := u.Hostname()
+	if hostname == "" {
+		return ""
+	}
 
-	// remove the port before parsing
-	portRe := regexp.MustCompile(`(?m):\d+$`)
-
-	domain := portRe.ReplaceAllString(u.Host, "")
+	// Parse the domain using publicsuffix-go
+	domainName, err := publicsuffix.Parse(hostname)
+	if err != nil {
+		// If parsing fails, return empty string for safety
+		return ""
+	}
 
 	switch selection {
 	case "subdomain":
-		return extractor.GetSubdomain(domain)
+		// TRD (Third-level domain) is the subdomain
+		return domainName.TRD
 	case "root":
-		return extractor.GetDomain(domain)
+		// SLD (Second-level domain) is the root domain
+		return domainName.SLD
 	case "tld":
-		return extractor.GetTld(domain)
+		// TLD is the top-level domain (public suffix)
+		return domainName.TLD
 	default:
 		return ""
 	}
