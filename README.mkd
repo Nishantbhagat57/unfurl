@@ -7,16 +7,26 @@ Pull out bits of URLs provided on `stdin`
 If you have Go installed and configured:
 
 ```
-▶ go install github.com/tomnomnom/unfurl@latest
+▶ go install github.com/Nishantbhagat57/unfurl@latest
 ```
 
-Otherwise [download the latest binary for your platform](https://github.com/tomnomnom/unfurl/releases),
-extract it and move it to somewhere in your `$PATH` (e.g. `/usr/bin/`):
-
+Removing old unfurl"
 ```
-▶ wget https://github.com/tomnomnom/unfurl/releases/download/v0.0.1/unfurl-linux-amd64-0.0.1.tgz
-▶ tar xzf unfurl-linux-amd64-0.0.1.tgz
-▶ sudo mv unfurl /usr/bin/
+# Check if it's in your GOPATH/bin
+which unfurl
+
+# If it shows a path like /home/user/go/bin/unfurl, remove it:
+rm $(which unfurl)
+
+# Check if it's in your local bin
+ls -la ~/go/bin/unfurl
+ls -la ~/.local/bin/unfurl
+ls -la /usr/local/bin/unfurl
+
+# Remove from wherever you find it:
+rm ~/go/bin/unfurl          # if found here
+rm ~/.local/bin/unfurl      # if found here
+sudo rm /usr/local/bin/unfurl  # if found here (needs sudo)
 ```
 
 ## Usage
