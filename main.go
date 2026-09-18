@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -100,6 +101,20 @@ func main() {
 // re-parsed
 func parseURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(raw)
+
+	// without "://", host:port and user:pass@host get read as a scheme
+	// ("example.com:" or "user:") and lose their host, so give those
+	// another go with http:// in front too
+	if err == nil && u.Scheme == "" && u.Host != "" {
+		// protocol-relative, e.g. //example.com/a
+		u.Scheme = "http"
+		return u, nil
+	}
+	if err != nil || u.Scheme == "" || (u.Host == "" && !strings.Contains(raw, "://")) {
+		if withScheme, err2 := url.Parse("http://" + raw); err2 == nil && withScheme.Host != "" {
+			return withScheme, nil
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -153,11 +168,7 @@ func jsonFormat(u *url.URL, _ string) []string {
 			parameters = append(parameters, KeyValue{Key: key, Value: val})
 		}
 	}
-	extractApexs := format(u, "%r.%t")
-	apex := ""
-	if len(extractApexs) == 1 {
-		apex = extractApexs[0]
-	}
+	apex := apexes(u, "")[0]
 	domain := ""
 	extractDomains := format(u, "%d")
 	if len(extractDomains) == 1 {
@@ -269,7 +280,11 @@ func domains(u *url.URL, f string) []string {
 // for http://sub.example.com/path it will return
 // []string{"example.com"}
 func apexes(u *url.URL, f string) []string {
-	return format(u, "%r.%t")
+	root, tld := extractFromDomain(u, "root"), extractFromDomain(u, "tld")
+	if root == "" || tld == "" {
+		return []string{""}
+	}
+	return []string{root + "." + tld}
 }
 
 // paths returns the path portion of the URL. e.g.
@@ -338,18 +353,18 @@ func format(u *url.URL, f string) []string {
 
 		// the path; e.g. /users
 		case 'p':
-			out.WriteString(u.RawPath)
+			out.WriteString(u.EscapedPath())
 
 		// the paths's file extension
 		case 'e':
-			paths := strings.Split(u.RawPath, "/")
+			paths := strings.Split(u.EscapedPath(), "/")
 			if len(paths) > 1 {
 				parts := strings.Split(paths[len(paths)-1], ".")
 				if len(parts) > 1 {
 					out.WriteString(parts[len(parts)-1])
 				}
 			} else {
-				parts := strings.Split(u.RawPath, ".")
+				parts := strings.Split(u.EscapedPath(), ".")
 				if len(parts) > 1 {
 					out.WriteString(parts[len(parts)-1])
 				}
@@ -407,17 +422,30 @@ func format(u *url.URL, f string) []string {
 // extractFromDomain extracts subdomain, root domain, or TLD from a URL's hostname
 // using the publicsuffix-go library which correctly handles multi-part TLDs
 func extractFromDomain(u *url.URL, selection string) string {
-	hostname := u.Hostname()
-	if hostname == "" {
+	// a fully-qualified name like xyz.example.com. is the same host as
+	// xyz.example.com, so drop the trailing dot(s) before looking it up
+	hostname := strings.TrimRight(u.Hostname(), ".")
+	if hostname == "" || net.ParseIP(hostname) != nil {
 		return ""
 	}
 
 	// Parse the domain using publicsuffix-go
 	domainName, err := publicsuffix.Parse(hostname)
 	if err != nil {
+		// the hostname is itself a private suffix (brave.app, github.io,
+		// s3.ap-south-1.amazonaws.com): someone owns exactly this name, so
+		// it is its own apex. ICANN suffixes like co.uk stay an error.
+		domainName = privateSuffixAsApex(hostname)
+		if domainName != nil {
+			err = nil
+		}
+	}
+	if err != nil {
 		// If parsing fails, return empty string for safety
 		return ""
 	}
+
+	extendPseudoSuffix(domainName)
 
 	switch selection {
 	case "subdomain":
@@ -431,6 +459,84 @@ func extractFromDomain(u *url.URL, selection string) string {
 		return domainName.TLD
 	default:
 		return ""
+	}
+}
+
+// privateSuffixAsApex returns hostname split as root + suffix when hostname
+// is wholly matched by a PSL private rule (github.io, or www.quipelements.com
+// via *.quipelements.com), or nil otherwise.
+func privateSuffixAsApex(hostname string) *publicsuffix.DomainName {
+	hostname = strings.ToLower(hostname)
+	r := publicsuffix.DefaultList.Find(hostname, nil)
+	// Decompose leaves the suffix part empty when the rule swallows the
+	// whole name
+	if r == nil || !r.Private || r.Decompose(hostname)[1] != "" {
+		return nil
+	}
+
+	i := strings.IndexByte(hostname, '.')
+	if i <= 0 || strings.Contains(hostname, "..") {
+		return nil
+	}
+	return &publicsuffix.DomainName{SLD: hostname[:i], TLD: hostname[i+1:], Rule: r}
+}
+
+// legacySuffixes are ICANN rules that have been dropped from the Public
+// Suffix List but still have live registrations under them (e.g. ac.tj).
+// Keeping them means upgrading publicsuffix-go never turns amazon.ac.tj
+// into a subdomain of ac.tj.
+var legacySuffixes = []string{
+	"nom.ad", "info.au", "schools.nsw.edu.au", "md.ci", "presse.ci",
+	"arts.co", "firm.co", "info.co", "int.co", "rec.co", "web.co",
+	"gov.cu", "mil.ge", "com.is", "edu.is", "gov.is", "int.is", "net.is",
+	"org.is", "aquila.it", "trentinosudtirol.it", "valdaosta.it", "name.jo",
+	"tm.mg", "museum.mw", "ca.na", "cc.na", "dr.na", "in.na", "info.na",
+	"mobi.na", "mx.na", "name.na", "or.na", "pro.na", "school.na", "tv.na",
+	"us.na", "ws.na", "audnedaln.no", "bjarkoy.no", "xn--bjarky-fya.no",
+	"frei.no", "mosvik.no", "gon.pk", "info.pk", "belau.pw", "co.pw",
+	"ed.pw", "go.pw", "ne.pw", "or.pw", "nom.re", "per.sg", "perso.sn",
+	"ac.tj", "aero.tt", "coop.tt", "int.tt", "jobs.tt", "mobi.tt",
+	"museum.tt", "travel.tt", "xn--czrw28b.tw", "xn--uc0atv.tw",
+	"xn--zf0ao64a.tw", "fed.us", "kids.us", "lib.ms.us", "cc.nd.us",
+	"lib.nd.us",
+}
+
+func init() {
+	// AddRule replaces by value, so a rule upstream re-adds is left as-is
+	for _, s := range legacySuffixes {
+		publicsuffix.DefaultList.AddRule(publicsuffix.MustNewRule(s))
+	}
+}
+
+// genericSLDs are labels that, placed in front of a ccTLD, form a zone that
+// is sold like a TLD (com.cr, com.at, com.co.uk) even though the Public
+// Suffix List doesn't list it.
+var genericSLDs = map[string]bool{
+	"com": true, "co": true, "net": true, "org": true,
+}
+
+// extendPseudoSuffix folds the SLD into the TLD when the SLD is a generic
+// label sitting on a ccTLD, so bmw-motorrad.com.cr has apex
+// bmw-motorrad.com.cr rather than com.cr. It only applies when there is a
+// label left to become the new SLD, and never on top of a private suffix
+// (x.com.github.io stays a github.io site).
+func extendPseudoSuffix(d *publicsuffix.DomainName) {
+	if d.TRD == "" || !genericSLDs[d.SLD] || (d.Rule != nil && d.Rule.Private) {
+		return
+	}
+
+	tldLabels := strings.Split(d.TLD, ".")
+	if len(tldLabels[len(tldLabels)-1]) != 2 {
+		return
+	}
+
+	d.TLD = d.SLD + "." + d.TLD
+	if i := strings.LastIndex(d.TRD, "."); i >= 0 {
+		d.SLD = d.TRD[i+1:]
+		d.TRD = d.TRD[:i]
+	} else {
+		d.SLD = d.TRD
+		d.TRD = ""
 	}
 }
 
