@@ -445,6 +445,12 @@ func extractFromDomain(u *url.URL, selection string) string {
 		return ""
 	}
 
+	// unknown TLDs are let through by the default "*" rule (so new TLDs
+	// work), but a real TLD is never a single character or all digits
+	if domainName.Rule == publicsuffix.DefaultRule && !plausibleTLD(domainName.TLD) {
+		return ""
+	}
+
 	extendPseudoSuffix(domainName)
 
 	switch selection {
@@ -460,6 +466,15 @@ func extractFromDomain(u *url.URL, selection string) string {
 	default:
 		return ""
 	}
+}
+
+// plausibleTLD reports whether an unlisted TLD could exist: at least two
+// characters and not purely numeric.
+func plausibleTLD(tld string) bool {
+	if len(tld) < 2 {
+		return false
+	}
+	return strings.Trim(tld, "0123456789") != ""
 }
 
 // privateSuffixAsApex returns hostname split as root + suffix when hostname
